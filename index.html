@@ -2423,11 +2423,12 @@
             createComparisonChart();
             createHistogramChart();
             createTrucksChart();
+            createProductivityChart();
+            createEfficiencyHeatmap();
         }
 
         function createFrenteChart() {
             const ctx = document.getElementById('chart-frente').getContext('2d');
-            const frenteColors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#06B6D4', '#84CC16', '#F59E0B'];
             
             const frenteData = frentes.map(frente => {
                 const frenteEntries = data.filter(entry => entry.frenteSaida === frente);
@@ -2437,7 +2438,8 @@
                 return {
                     frente,
                     avgPalha: validPalha.length > 0 ? validPalha.reduce((sum, entry) => sum + entry.tempoPalha, 0) / validPalha.length : 0,
-                    avgUsina: validUsina.length > 0 ? validUsina.reduce((sum, entry) => sum + entry.tempoUsina, 0) / validUsina.length : 0
+                    avgUsina: validUsina.length > 0 ? validUsina.reduce((sum, entry) => sum + entry.tempoUsina, 0) / validUsina.length : 0,
+                    count: frenteEntries.length
                 };
             });
 
@@ -2449,16 +2451,20 @@
                         {
                             label: 'Tempo Palha (min)',
                             data: frenteData.map(f => f.avgPalha.toFixed(1)),
-                            backgroundColor: '#3B82F6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.8)',
                             borderColor: '#1D4ED8',
-                            borderWidth: 1
+                            borderWidth: 2,
+                            borderRadius: 8,
+                            borderSkipped: false,
                         },
                         {
                             label: 'Tempo Pátio (min)',
                             data: frenteData.map(f => f.avgUsina.toFixed(1)),
-                            backgroundColor: '#10B981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.8)',
                             borderColor: '#047857',
-                            borderWidth: 1
+                            borderWidth: 2,
+                            borderRadius: 8,
+                            borderSkipped: false,
                         }
                     ]
                 },
@@ -2468,6 +2474,28 @@
                     plugins: {
                         legend: {
                             position: 'top',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: 'white',
+                            bodyColor: 'white',
+                            borderColor: '#6366F1',
+                            borderWidth: 1,
+                            callbacks: {
+                                afterBody: function(context) {
+                                    const index = context[0].dataIndex;
+                                    const frente = frenteData[index];
+                                    return [`Total de viagens: ${frente.count}`];
+                                }
+                            }
                         }
                     },
                     scales: {
@@ -2475,9 +2503,25 @@
                             beginAtZero: true,
                             title: {
                                 display: true,
-                                text: 'Tempo (minutos)'
+                                text: 'Tempo (minutos)',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
                             }
                         }
+                    },
+                    animation: {
+                        duration: 2000,
+                        easing: 'easeOutCubic'
                     }
                 }
             });
@@ -2509,9 +2553,19 @@
                     labels: ['Turno A (6h-14h)', 'Turno B (14h-22h)', 'Turno C (22h-6h)'],
                     datasets: [{
                         data: shiftCounts,
-                        backgroundColor: ['#3B82F6', '#10B981', '#8B5CF6'],
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.8)',
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(139, 92, 246, 0.8)'
+                        ],
                         borderColor: ['#1D4ED8', '#047857', '#6D28D9'],
-                        borderWidth: 2
+                        borderWidth: 3,
+                        hoverBackgroundColor: [
+                            'rgba(59, 130, 246, 0.9)',
+                            'rgba(16, 185, 129, 0.9)',
+                            'rgba(139, 92, 246, 0.9)'
+                        ],
+                        hoverBorderWidth: 4
                     }]
                 },
                 options: {
@@ -2520,8 +2574,55 @@
                     plugins: {
                         legend: {
                             position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                },
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    if (data.labels.length && data.datasets.length) {
+                                        return data.labels.map((label, i) => {
+                                            const dataset = data.datasets[0];
+                                            const value = dataset.data[i];
+                                            const total = dataset.data.reduce((sum, val) => sum + val, 0);
+                                            const percentage = ((value / total) * 100).toFixed(1);
+                                            return {
+                                                text: `${label}: ${value} (${percentage}%)`,
+                                                fillStyle: dataset.backgroundColor[i],
+                                                strokeStyle: dataset.borderColor[i],
+                                                pointStyle: 'circle'
+                                            };
+                                        });
+                                    }
+                                    return [];
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: 'white',
+                            bodyColor: 'white',
+                            borderColor: '#6366F1',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
+                                    const percentage = ((context.raw / total) * 100).toFixed(1);
+                                    return `${context.label}: ${context.raw} viagens (${percentage}%)`;
+                                }
+                            }
                         }
-                    }
+                    },
+                    animation: {
+                        duration: 2000,
+                        easing: 'easeOutCubic',
+                        animateRotate: true,
+                        animateScale: true
+                    },
+                    cutout: '60%'
                 }
             });
         }
@@ -2559,17 +2660,29 @@
                             label: 'Tempo Palha (min)',
                             data: evolutionData.map(d => d.avgPalha.toFixed(1)),
                             borderColor: '#3B82F6',
-                            backgroundColor: '#3B82F620',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
                             tension: 0.4,
-                            fill: false
+                            fill: true,
+                            pointRadius: 6,
+                            pointHoverRadius: 8,
+                            pointBackgroundColor: '#3B82F6',
+                            pointBorderColor: '#FFFFFF',
+                            pointBorderWidth: 2,
+                            borderWidth: 3
                         },
                         {
                             label: 'Tempo Pátio (min)',
                             data: evolutionData.map(d => d.avgUsina.toFixed(1)),
                             borderColor: '#10B981',
-                            backgroundColor: '#10B98120',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
                             tension: 0.4,
-                            fill: false
+                            fill: true,
+                            pointRadius: 6,
+                            pointHoverRadius: 8,
+                            pointBackgroundColor: '#10B981',
+                            pointBorderColor: '#FFFFFF',
+                            pointBorderWidth: 2,
+                            borderWidth: 3
                         }
                     ]
                 },
@@ -2579,6 +2692,28 @@
                     plugins: {
                         legend: {
                             position: 'top',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: 'white',
+                            bodyColor: 'white',
+                            borderColor: '#6366F1',
+                            borderWidth: 1,
+                            callbacks: {
+                                afterBody: function(context) {
+                                    const index = context[0].dataIndex;
+                                    const day = evolutionData[index];
+                                    return [`Total de registros: ${day.count}`];
+                                }
+                            }
                         }
                     },
                     scales: {
@@ -2586,9 +2721,29 @@
                             beginAtZero: true,
                             title: {
                                 display: true,
-                                text: 'Tempo (minutos)'
+                                text: 'Tempo (minutos)',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
                             }
                         }
+                    },
+                    animation: {
+                        duration: 2000,
+                        easing: 'easeOutCubic'
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
                     }
                 }
             });
